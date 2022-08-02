@@ -42,7 +42,7 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = '/login'
 
-auth_module = import_module('web.auth.{}.views'.format(fame_config.auth))
+auth_module = import_module(f'web.auth.{fame_config.auth}.views')
 app.register_blueprint(auth_module.auth)
 
 
@@ -77,18 +77,12 @@ def to_json(value):
 def smart_join(value, separator=", "):
     if value is None:
         return ''
-    if isinstance(value, str):
-        return value
-    else:
-        return separator.join(value)
+    return value if isinstance(value, str) else separator.join(value)
 
 
 @app.template_filter()
 def form_value(value):
-    if value is None:
-        return ''
-    else:
-        return value
+    return '' if value is None else value
 
 
 @app.template_filter()
@@ -124,8 +118,8 @@ def unique(l):
 
 @app.template_filter()
 def avatar(user_id):
-    if os.path.exists(os.path.join(AVATARS_ROOT, "{}.png".format(user_id))):
-        return url_for('static', filename="img/avatars/{}.png".format(user_id))
+    if os.path.exists(os.path.join(AVATARS_ROOT, f"{user_id}.png")):
+        return url_for('static', filename=f"img/avatars/{user_id}.png")
     else:
         return url_for('static', filename="img/avatars/default.png")
 
@@ -137,7 +131,7 @@ def delete_query(*new_values):
     for key in new_values:
         del args[key]
 
-    return '{}?{}'.format(request.path, url_encode(args))
+    return f'{request.path}?{url_encode(args)}'
 
 
 @app.template_global()
@@ -145,7 +139,7 @@ def modify_query(key, value):
     args = request.args.copy()
     args[key] = value
 
-    return '{}?{}'.format(request.path, url_encode(args))
+    return f'{request.path}?{url_encode(args)}'
 
 
 @app.route('/')

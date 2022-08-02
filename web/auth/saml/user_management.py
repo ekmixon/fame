@@ -17,9 +17,7 @@ def authenticate(session):
 
 
 def get_or_create_user(saml_name_id, saml_user_data):
-    user = User.get(saml_name_id=saml_name_id)
-
-    if user:
+    if user := User.get(saml_name_id=saml_name_id):
         return user_if_enabled(user)
 
     return create_user(saml_name_id, saml_user_data)

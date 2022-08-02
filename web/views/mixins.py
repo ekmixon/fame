@@ -17,8 +17,7 @@ class AuthenticatedView(object):
 
 class UIView(AuthenticatedView):
     def before_request(self, *args, **kwargs):
-        redir = AuthenticatedView.before_request(self, *args, **kwargs)
-        if redir:
+        if redir := AuthenticatedView.before_request(self, *args, **kwargs):
             return redir
 
         g.last_analyses = []

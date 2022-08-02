@@ -36,31 +36,30 @@ def get_deploy_key():
 
 def update_config(settings, options=False):
     for config in settings:
-        value = request.form.get("config_{}".format(config['name']))
+        value = request.form.get(f"config_{config['name']}")
 
         if value == '':
             config['value'] = None
             if 'default' not in config:
-                flash('{} is required'.format(config['name']), 'danger')
+                flash(f"{config['name']} is required", 'danger')
                 return validation_error()
+        elif config['type'] == "bool":
+            config['value'] = (value is not None) and (value not in ['0', 'False'])
         else:
-            if config['type'] == "bool":
-                config['value'] = (value is not None) and (value not in ['0', 'False'])
-            else:
-                if value is None:
-                    continue
+            if value is None:
+                continue
 
-                if config['type'] == "integer":
-                    try:
-                        config['value'] = int(value, 0)
-                    except:
-                        flash('{} must be an integer'.format(config['name']), 'danger')
-                        return validation_error()
-                else:
-                    config['value'] = value
+            if config['type'] == "integer":
+                try:
+                    config['value'] = int(value, 0)
+                except:
+                    flash(f"{config['name']} must be an integer", 'danger')
+                    return validation_error()
+            else:
+                config['value'] = value
 
         if options:
-            option = request.form.get("config_{}_option".format(config['name']))
+            option = request.form.get(f"config_{config['name']}_option")
             config['option'] = (option is not None) and (option not in ['0', 'False'])
 
     return None
@@ -237,7 +236,11 @@ class ModulesView(FlaskView, UIView):
         module = ModuleInfo(get_or_404(ModuleInfo.get_collection(), _id=id))
 
         if 'error' in module:
-            flash("Cannot enable '{}' because of errors installing dependencies.".format(module['name']), 'danger')
+            flash(
+                f"Cannot enable '{module['name']}' because of errors installing dependencies.",
+                'danger',
+            )
+
             return validation_error(url_for('ModulesView:index'))
 
         # See if module is properly configured
@@ -247,17 +250,24 @@ class ModulesView(FlaskView, UIView):
             module_class()
         except MissingConfiguration as e:
             if e.name:
-                flash("You must configure '{}' before trying to enable '{}'".format(e.name, module['name']), 'warning')
+                flash(
+                    f"You must configure '{e.name}' before trying to enable '{module['name']}'",
+                    'warning',
+                )
+
                 return validation_error(url_for('ModulesView:configuration', id=e.id))
             else:
-                flash("You must configure '{}' before trying to enable it.".format(module['name']), 'warning')
+                flash(
+                    f"You must configure '{module['name']}' before trying to enable it.",
+                    'warning',
+                )
+
                 return validation_error(url_for('ModulesView:configure', id=module['_id']))
 
         module.update_value('enabled', True)
         dispatcher.reload()
 
-        readme = module.get_readme()
-        if readme:
+        if readme := module.get_readme():
             flash(readme, 'persistent')
 
         return redirect({'module': clean_modules(module)}, url_for('ModulesView:index'))
@@ -282,16 +292,15 @@ class ModulesView(FlaskView, UIView):
         """
         config = Config(get_or_404(Config.get_collection(), _id=id))
 
-        if request.method == "POST":
-            errors = update_config(config['config'])
-            if errors is not None:
-                return errors
-
-            config.save()
-            dispatcher.reload()
-            return redirect({'config': config}, url_for('ModulesView:index'))
-        else:
+        if request.method != "POST":
             return render({'config': config}, 'modules/configuration.html')
+        errors = update_config(config['config'])
+        if errors is not None:
+            return errors
+
+        config.save()
+        dispatcher.reload()
+        return redirect({'config': config}, url_for('ModulesView:index'))
 
     @requires_permission('manage_modules')
     @route('/<id>/configure', methods=['GET', 'POST'])
@@ -324,36 +333,35 @@ class ModulesView(FlaskView, UIView):
         module = ModuleInfo(get_or_404(ModuleInfo.get_collection(), _id=id))
         module['readme'] = module.get_readme()
 
-        if request.method == "POST":
-            if module['type'] == 'Filetype':
-                if 'acts_on' in request.form:
-                    module.update_setting_value('acts_on', request.form.get('acts_on', ''))
-            elif module['type'] == 'Processing':
-                if 'acts_on' in request.form:
-                    module.update_setting_value('acts_on', request.form.get('acts_on', ''))
-
-                if 'triggered_by' in request.form:
-                    module.update_setting_value('triggered_by', request.form.get('triggered_by', ''))
-
-                if 'queue' in request.form:
-                    update_queue(module, request.form.get('queue', ''))
-
-            elif module['type'] == "Preloading":
-                if 'queue' in request.form:
-                    update_queue(module, request.form.get('queue', ''))
-
-                if 'priority' in request.form:
-                    update_priority(module, request.form.get('priority', ''))
-
-            errors = update_config(module['config'], options=(module['type'] in ['Preloading', 'Processing']))
-            if errors is not None:
-                return errors
-
-            module.save()
-            dispatcher.reload()
-            return redirect({'module': clean_modules(module)}, url_for('ModulesView:index'))
-        else:
+        if request.method != "POST":
             return render({'module': clean_modules(module)}, 'modules/module_configuration.html')
+        if module['type'] == 'Filetype':
+            if 'acts_on' in request.form:
+                module.update_setting_value('acts_on', request.form.get('acts_on', ''))
+        elif module['type'] == 'Processing':
+            if 'acts_on' in request.form:
+                module.update_setting_value('acts_on', request.form.get('acts_on', ''))
+
+            if 'triggered_by' in request.form:
+                module.update_setting_value('triggered_by', request.form.get('triggered_by', ''))
+
+            if 'queue' in request.form:
+                update_queue(module, request.form.get('queue', ''))
+
+        elif module['type'] == "Preloading":
+            if 'queue' in request.form:
+                update_queue(module, request.form.get('queue', ''))
+
+            if 'priority' in request.form:
+                update_priority(module, request.form.get('priority', ''))
+
+        errors = update_config(module['config'], options=(module['type'] in ['Preloading', 'Processing']))
+        if errors is not None:
+            return errors
+
+        module.save()
+        dispatcher.reload()
+        return redirect({'module': clean_modules(module)}, url_for('ModulesView:index'))
 
     def list(self):
         """List enabled Processing and Preloading modules
@@ -447,12 +455,13 @@ class ModulesView(FlaskView, UIView):
             for field in ['name', 'address']:
                 repository[field] = request.form.get(field)
                 if repository[field] is None or repository[field] == "":
-                    flash("{} is required.".format(field), 'danger')
+                    flash(f"{field} is required.", 'danger')
                     return validation_error()
 
-                existing_repository = Repository.get(**{field: repository[field]})
-                if existing_repository:
-                    flash("There is already a repository with this {}.".format(field), 'danger')
+                if existing_repository := Repository.get(
+                    **{field: repository[field]}
+                ):
+                    flash(f"There is already a repository with this {field}.", 'danger')
                     return validation_error()
 
             value = request.form.get('private')

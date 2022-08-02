@@ -30,9 +30,11 @@ class Dispatcher:
                 try:
                     module = importlib.import_module(name)
                     for _, obj in inspect.getmembers(module, inspect.isclass):
-                        if issubclass(obj, module_classes.ProcessingModule):
-                            if obj.name:
-                                self.modules[obj.name] = obj
+                        if (
+                            issubclass(obj, module_classes.ProcessingModule)
+                            and obj.name
+                        ):
+                            self.modules[obj.name] = obj
                 except:
                     pass
 
@@ -65,12 +67,8 @@ class Dispatcher:
                 setattr(module, config['name'], config['default'])
 
     def get_value_from_user(self, setting, prefix=None):
-        if prefix:
-            name = "{}.{}".format(prefix, setting['name'])
-        else:
-            name = setting['name']
-
-        prompt = "{} ({})".format(name, setting['description'])
+        name = f"{prefix}.{setting['name']}" if prefix else setting['name']
+        prompt = f"{name} ({setting['description']})"
         if 'default' in setting:
             value = user_input(prompt, setting['default'])
         else:
@@ -101,7 +99,9 @@ class TestAnalysis(dict):
         self.matched_type = False
 
     def log(self, level, message):
-        self['logs'].append("%s: %s: %s" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M"), level, message))
+        self['logs'].append(
+            f'{datetime.datetime.now().strftime("%Y-%m-%d %H:%M")}: {level}: {message}'
+        )
 
     def filepath(self, path):
         return path
@@ -119,7 +119,7 @@ class TestAnalysis(dict):
         return self['filename']
 
     def change_type(self, location, new_type):
-        print(("Changing type of '{}' to '{}'".format(location, new_type)))
+        print(f"Changing type of '{location}' to '{new_type}'")
 
     def add_extraction(self, label, extraction):
         self['extractions'].append({'label': label, 'content': u(extraction)})
@@ -148,27 +148,27 @@ class TestAnalysis(dict):
             ioc['tags'].add(tag)
 
     def pprint(self):
-        print(("Probable Names: {}\n".format(", ".join(self['probable_names']))))
+        print(f"""Probable Names: {", ".join(self['probable_names'])}\n""")
 
         print("\n## Extracted Files\n")
         for f in self['extracted_files']:
-            print(("{}".format(f)))
+            print(f"{f}")
 
         print("\n## IOCs\n")
         for ioc in self['iocs']:
-            print(("{} ({})".format(ioc['value'], ", ".join(ioc['tags']))))
+            print(f"""{ioc['value']} ({", ".join(ioc['tags'])})""")
 
         print("\n## Extractions\n")
         for extraction in self['extractions']:
-            print(("-- {} --\n\n{}".format(extraction['label'], extraction['content'])))
+            print(f"-- {extraction['label']} --\n\n{extraction['content']}")
 
         print("\n## Generated Files\n")
         for f in self['generated_files']:
-            print(("{} ({})".format(f['path'], f['type'])))
+            print(f"{f['path']} ({f['type']})")
 
         print("\n## Support Files\n")
         for f in self['support_files']:
-            print(("{}".format(f)))
+            print(f"{f}")
 
         print("\n## Logs\n")
         for f in self['logs']:
@@ -181,7 +181,7 @@ def test_mode_module(name, interactive):
     module = dispatcher.get_processing_module(name)
 
     if not module:
-        error("Could not find module '{}'".format(name))
+        error(f"Could not find module '{name}'")
 
     return module
 
@@ -223,7 +223,7 @@ if __name__ == '__main__':
 
     ret = module.execute(analysis)
 
-    print(("\nResult: {}\n".format(ret)))
+    print(f"\nResult: {ret}\n")
 
     analysis.pprint()
 

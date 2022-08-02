@@ -19,8 +19,8 @@ from fame.core.module import ModuleInfo
 
 def version_info():
     print("########## VERSION ##########\n")
-    print(("OS: {}".format(platform.platform())))
-    print(("Python: {}".format(platform.python_version())))
+    print(f"OS: {platform.platform()}")
+    print(f"Python: {platform.python_version()}")
     print("\n")
 
 
@@ -49,18 +49,18 @@ def mongodb():
         if fame_config.mongo_user and fame_config.mongo_password:
             db.authenticate(fame_config.mongo_user, quote_plus(fame_config.mongo_password), mechanism='SCRAM-SHA-1')
 
-        print(("Version: {}".format(connection.server_info()['version'])))
-        print(("Authorization check: {}\n".format(test_mongodb_connection(db))))
+        print(f"Version: {connection.server_info()['version']}")
+        print(f"Authorization check: {test_mongodb_connection(db)}\n")
         return True
     except Exception as e:
-        print(("Could not connect to MongoDB: {}\n".format(e)))
+        print(f"Could not connect to MongoDB: {e}\n")
         return False
 
 
 def configuration():
     print("########## Configuration ##########\n")
     for config in Config.find():
-        print(("{}: {}".format(config['name'], not incomplete_config(config['config']))))
+        print(f"{config['name']}: {not incomplete_config(config['config'])}")
 
     print("\nModules:\n")
 

@@ -91,7 +91,10 @@ class Analysis(MongoDict):
 
         for location in iterify(locations):
             if fame_config.remote:
-                response = send_file_to_remote(location, '/analyses/{}/generated_file'.format(self['_id']))
+                response = send_file_to_remote(
+                    location, f"/analyses/{self['_id']}/generated_file"
+                )
+
                 filepath = response.json()['path']
             else:
                 filepath = location
@@ -101,30 +104,29 @@ class Analysis(MongoDict):
 
         # Then, trigger registered modules if magic is enabled
         if self.magic_enabled():
-            self.queue_modules(dispatcher.triggered_by("_generated_file(%s)" % file_type))
+            self.queue_modules(dispatcher.triggered_by(f"_generated_file({file_type})"))
 
     def add_extracted_file(self, filepath, automatic_analysis=True):
-        self.log('debug', "Adding extracted file '{}'".format(filepath))
+        self.log('debug', f"Adding extracted file '{filepath}'")
 
-        fd = open(filepath, 'rb')
-        filename = os.path.basename(filepath)
-        f = File(filename=filename, stream=fd, create=False)
+        with open(filepath, 'rb') as fd:
+            filename = os.path.basename(filepath)
+            f = File(filename=filename, stream=fd, create=False)
 
-        if not f.existing:
-            if fame_config.remote:
-                response = send_file_to_remote(filepath, '/files/')
-                f = File(response.json()['file'])
-            else:
-                f = File(filename=os.path.basename(filepath), stream=fd)
+            if not f.existing:
+                if fame_config.remote:
+                    response = send_file_to_remote(filepath, '/files/')
+                    f = File(response.json()['file'])
+                else:
+                    f = File(filename=os.path.basename(filepath), stream=fd)
 
-            # Automatically analyze extracted file if magic is enabled and module did not disable it
-            if self.magic_enabled() and automatic_analysis:
-                modules = []
-                config = Config.get(name="extracted").get_values()
-                if config is not None and "modules" in config:
-                    modules = config["modules"].split()
-                f.analyze(self['groups'], self['analyst'], modules, self['options'])
-        fd.close()
+                # Automatically analyze extracted file if magic is enabled and module did not disable it
+                if self.magic_enabled() and automatic_analysis:
+                    modules = []
+                    config = Config.get(name="extracted").get_values()
+                    if config is not None and "modules" in config:
+                        modules = config["modules"].split()
+                    f.analyze(self['groups'], self['analyst'], modules, self['options'])
         f.add_groups(self['groups'])
 
         self.append_to('extracted_files', f['_id'])
@@ -138,13 +140,16 @@ class Analysis(MongoDict):
             if self.magic_enabled():
                 self._file.analyze(self['groups'], self['analyst'], None, self['options'])
         else:
-            self.log('warning', "Tried to change type of generated file '{}'".format(filepath))
+            self.log('warning', f"Tried to change type of generated file '{filepath}'")
 
     def add_support_file(self, module_name, name, filepath):
-        self.log('debug', "Adding support file '{}' at '{}'".format(name, filepath))
+        self.log('debug', f"Adding support file '{name}' at '{filepath}'")
 
         if fame_config.remote:
-            response = send_file_to_remote(filepath, '/analyses/{}/support_file/{}'.format(self['_id'], module_name))
+            response = send_file_to_remote(
+                filepath, f"/analyses/{self['_id']}/support_file/{module_name}"
+            )
+
             dstfilepath = response.json()['path']
         else:
             dirpath = os.path.join(fame_config.storage_path, 'support_files', module_name, str(self['_id']))
@@ -236,11 +241,10 @@ class Analysis(MongoDict):
 
             return File(response.json()['file'])
         else:
-            if filepath:
-                with open(filepath, 'rb') as f:
-                    return File(filename=os.path.basename(filepath), stream=f)
-            else:
+            if not filepath:
                 return File(filename=self._file['names'][0], stream=fd)
+            with open(filepath, 'rb') as f:
+                return File(filename=os.path.basename(filepath), stream=f)
 
     def add_preloaded_file(self, filepath, fd):
         f = self._store_preloaded_file(filepath, fd)
@@ -293,7 +297,7 @@ class Analysis(MongoDict):
     def _cancel_module(self, module):
         self.remove_from('waiting_modules', module)
         self.append_to('canceled_modules', module)
-        self.log('warning', 'could not find execution path to "{}" (cancelled)'.format(module))
+        self.log('warning', f'could not find execution path to "{module}" (cancelled)')
 
     # Queue execution of specific module(s)
     def queue_modules(self, modules, fallback_waiting=True):
@@ -304,12 +308,11 @@ class Analysis(MongoDict):
 
                 if module is None:
                     self._error_with_module(module_name, "module has been removed or disabled.")
-                else:
-                    if self._can_execute_module(module):
-                        if self.append_to('pending_modules', module_name):
-                            run_module.apply_async((self['_id'], module_name), queue=module.info['queue'])
-                    elif fallback_waiting:
-                        self.append_to('waiting_modules', module_name)
+                elif self._can_execute_module(module):
+                    if self.append_to('pending_modules', module_name):
+                        run_module.apply_async((self['_id'], module_name), queue=module.info['queue'])
+                elif fallback_waiting:
+                    self.append_to('waiting_modules', module_name)
 
     # Run specific module, should only be executed on celery worker
     def run(self, module_name):
@@ -338,7 +341,7 @@ class Analysis(MongoDict):
 
                         # Save tags, and queue triggered modules
                         for tag in module.tags:
-                            tag_string = "%s(%s)" % (module_name, tag)
+                            tag_string = f"{module_name}({tag})"
                             self.add_tag(tag_string)
 
                         self.add_tag(module_name)
@@ -361,47 +364,48 @@ class Analysis(MongoDict):
             self.queue_modules(dispatcher.triggered_by(tag))
 
     def log(self, level, message):
-        message = "%s: %s: %s" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M"), level, message)
+        message = f'{datetime.datetime.now().strftime("%Y-%m-%d %H:%M")}: {level}: {message}'
+
         self.append_to('logs', message)
 
     # This will give the correct and locally valid filepath of given file
     # When on a remote worker, the file needs to be retrieved first
     def filepath(self, path):
-        if fame_config.remote:
-            pathhash = md5(path.encode('utf-8')).hexdigest()
-            local_path = os.path.join(fame_config.storage_path, pathhash)
-            if not os.path.isfile(local_path):
-                # Make sure fame_config.storage_path exists
-                try:
-                    os.makedirs(fame_config.storage_path)
-                except Exception:
-                    pass
+        if not fame_config.remote:
+            return path
+        pathhash = md5(path.encode('utf-8')).hexdigest()
+        local_path = os.path.join(fame_config.storage_path, pathhash)
+        if not os.path.isfile(local_path):
+            # Make sure fame_config.storage_path exists
+            try:
+                os.makedirs(fame_config.storage_path)
+            except Exception:
+                pass
 
-                url = urljoin(fame_config.remote, '/analyses/{}/get_file/{}'.format(self['_id'], pathhash))
-                response = requests.get(url, stream=True, headers={'X-API-KEY': fame_config.api_key})
-                response.raise_for_status()
-                f = open(local_path, 'ab')
+            url = urljoin(
+                fame_config.remote, f"/analyses/{self['_id']}/get_file/{pathhash}"
+            )
+
+            response = requests.get(url, stream=True, headers={'X-API-KEY': fame_config.api_key})
+            response.raise_for_status()
+            with open(local_path, 'ab') as f:
                 for chunk in response.iter_content(1024):
                     f.write(chunk)
 
-                f.close()
-
-            return local_path
-        else:
-            return path
+        return local_path
 
     def get_main_file(self):
         filepath = self._file['filepath']
-        if self._needs_preloading():
-            return filepath
-        return self.filepath(filepath)
+        return filepath if self._needs_preloading() else self.filepath(filepath)
 
     def get_files(self, file_type):
         results = []
 
         if file_type in self['generated_files']:
-            for filepath in self['generated_files'][file_type]:
-                results.append(self.filepath(filepath))
+            results.extend(
+                self.filepath(filepath)
+                for filepath in self['generated_files'][file_type]
+            )
 
         if self._file['type'] == file_type:
             results.append(self.get_main_file())
@@ -427,7 +431,7 @@ class Analysis(MongoDict):
             except Exception as e:
                 import traceback
                 traceback.print_exc()
-                self.log('error', "error in threat intelligence module '{}': {}".format(module.name, e))
+                self.log('error', f"error in threat intelligence module '{module.name}': {e}")
 
         return ti_tags, ti_indicators
 
@@ -458,24 +462,19 @@ class Analysis(MongoDict):
         # Only Preloading modules can execute on a hash
         if self._needs_preloading():
             return module.info['type'] == "Preloading"
-        # When a file is present, look at acts_on property
         elif 'acts_on' not in module.info or not module.info['acts_on']:
             return True
         else:
-            for source_type in iterify(module.info['acts_on']):
-                if source_type in self._types_available():
-                    return True
-
-            return False
+            return any(
+                source_type in self._types_available()
+                for source_type in iterify(module.info['acts_on'])
+            )
 
     # Returns True if any module was in the queue
     def _run_pending_modules(self):
         self.refresh()
 
-        if len(self['pending_modules']) == 0:
-            return False
-        else:
-            return True
+        return len(self['pending_modules']) != 0
 
     def _tried_modules(self):
         return self['executed_modules'] + self['canceled_modules']
@@ -487,7 +486,7 @@ class Analysis(MongoDict):
             self.queue_modules(dispatcher.general_purpose(), False)
 
     def _error_with_module(self, module, message):
-        self.log("error", "{}: {}".format(module, message))
+        self.log("error", f"{module}: {message}")
         self.append_to('canceled_modules', module)
 
 

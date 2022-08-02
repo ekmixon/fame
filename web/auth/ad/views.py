@@ -15,25 +15,24 @@ auth = Blueprint('auth', __name__, template_folder='templates')
 def login():
     if request.method == 'GET':
         return render_template('login.html')
-    else:
-        try:
-            user = authenticate(request.form.get('email'), request.form.get('password'))
-        except SERVER_DOWN:
-            flash("LDAP Server down.", "danger")
-            return render_template('login.html')
-        except INVALID_CREDENTIALS:
-            flash("Invalid credentials.", "danger")
-            return render_template('login.html')
-        except LdapSettingsNotPresentException:
-            flash("LDAP Settings not present. Check server logs.", "danger")
-            return render_template('login.html')
+    try:
+        user = authenticate(request.form.get('email'), request.form.get('password'))
+    except SERVER_DOWN:
+        flash("LDAP Server down.", "danger")
+        return render_template('login.html')
+    except INVALID_CREDENTIALS:
+        flash("Invalid credentials.", "danger")
+        return render_template('login.html')
+    except LdapSettingsNotPresentException:
+        flash("LDAP Settings not present. Check server logs.", "danger")
+        return render_template('login.html')
 
-        if not user or not user_has_groups_and_sharing(user):
-            flash("Access not allowed.", "danger")
-            return render_template('login.html')
+    if not user or not user_has_groups_and_sharing(user):
+        flash("Access not allowed.", "danger")
+        return render_template('login.html')
 
-        redir = request.args.get('next', '/')
-        return redirect(redir)
+    redir = request.args.get('next', '/')
+    return redirect(redir)
 
 
 @auth.route('/logout')

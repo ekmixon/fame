@@ -4,7 +4,7 @@ class ModuleInitializationError(Exception):
         self._description = description
 
     def __str__(self):
-        return "%s: %s" % (self._module, self._description)
+        return f"{self._module}: {self._description}"
 
 
 class ModuleExecutionError(Exception):

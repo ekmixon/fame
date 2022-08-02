@@ -23,11 +23,7 @@ def create_user(admin=False, password=True):
         default_sharing = user_input("Default Sharing Groups (comma-separated)").split(',')
         permissions = user_input("Permissions (comma-separated)").split(',')
 
-    if password:
-        password = get_new_password()
-    else:
-        password = None
-
+    password = get_new_password() if password else None
     do_create_user(full_name, email, groups, default_sharing, permissions, password)
 
 

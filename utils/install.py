@@ -81,10 +81,7 @@ def define_installation_type(context):
     print(" - 2: Remote worker\n")
 
     itype = user_input("Installation type", "1", ["1", "2"])
-    if itype == "1":
-        context['installation_type'] = 'local'
-    else:
-        context['installation_type'] = 'remote'
+    context['installation_type'] = 'local' if itype == "1" else 'remote'
 
 
 def generate_ssh_key():
@@ -113,9 +110,7 @@ def create_admin_user():
 def add_community_repository():
     from fame.core.repository import Repository
 
-    repo = Repository.get(name="community")
-
-    if repo:
+    if repo := Repository.get(name="community"):
         print("[+] Community repository already installed.")
     else:
         print("[+] Installing community repository ...")

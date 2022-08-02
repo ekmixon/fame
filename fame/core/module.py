@@ -34,10 +34,7 @@ class ModuleInfo(MongoDict):
         else:
             filepath = os.path.join(os.path.dirname(path), filename)
 
-        if os.path.isfile(filepath):
-            return filepath
-
-        return None
+        return filepath if os.path.isfile(filepath) else None
 
     def get_readme(self):
         readme = self.get_file('README.md')
@@ -86,10 +83,9 @@ class ModuleInfo(MongoDict):
                     self._remove_value(name, element)
 
             self[name] = value
-        else:
-            if self[name] != value:
-                self['diffs'][name] = value
-                self[name] = value
+        elif self[name] != value:
+            self['diffs'][name] = value
+            self[name] = value
 
     def _init_list_diff(self, name):
         if 'diffs' not in self:
@@ -246,13 +242,13 @@ class Module(object):
         for named_config in self.named_configs:
             config = Config.get(name=named_config)
             if config is None:
-                raise MissingConfiguration("Missing '{}' configuration".format(named_config))
+                raise MissingConfiguration(f"Missing '{named_config}' configuration")
 
             setattr(self, named_config, config.get_values())
 
         for config in self.info['config']:
             if (config['value'] is None) and ('default' not in config):
-                raise MissingConfiguration("Missing configuration value: {}".format(config['name']))
+                raise MissingConfiguration(f"Missing configuration value: {config['name']}")
 
             setattr(self, config['name'], config['value'])
             if config['value'] is None:
@@ -265,7 +261,7 @@ class Module(object):
             level: string to define the log level (``debug``, ``info``, ``warning`` or ``error``).
             message: free text message containing the log information.
         """
-        self._analysis.log(level, "%s: %s" % (self.name, message))
+        self._analysis.log(level, f"{self.name}: {message}")
 
     @classmethod
     def named_config(cls, name):
@@ -476,17 +472,13 @@ class ProcessingModule(Module):
         """
         result = False
 
-        # Process all the files available for this module,
-        # if 'acts_on' is defined
-        if self.info['acts_on']:
-            for source_type in iterify(self.info['acts_on']):
-                for target in self._analysis.get_files(source_type):
-                    if self._try_each(target, source_type):
-                        result = True
-        # Otherwise, only run on main target
-        else:
+        if not self.info['acts_on']:
             return self._try_each(self._analysis.get_main_file(), self._analysis._file['type'])
 
+        for source_type in iterify(self.info['acts_on']):
+            for target in self._analysis.get_files(source_type):
+                if self._try_each(target, source_type):
+                    result = True
         return result
 
     def _try_each(self, target, file_type):
@@ -497,7 +489,7 @@ class ProcessingModule(Module):
 
             return self.each_with_type(target, file_type)
         except ModuleExecutionError as e:
-            self.log("error", "Could not run on %s: %s" % (target, e))
+            self.log("error", f"Could not run on {target}: {e}")
             return False
         except Exception:
             tb = traceback.format_exc()
@@ -600,7 +592,7 @@ class IsolatedProcessingModule(ProcessingModule):
 
     def _url(self, path):
         if self.task_id:
-            return urljoin(self.base_url, "/{}{}".format(self.task_id, path))
+            return urljoin(self.base_url, f"/{self.task_id}{path}")
         else:
             return urljoin(self.base_url, path)
 
@@ -617,7 +609,7 @@ class IsolatedProcessingModule(ProcessingModule):
 
             return response
         except Exception as e:
-            raise ModuleExecutionError("Error communicating with agent ({}): {}".format(path, e))
+            raise ModuleExecutionError(f"Error communicating with agent ({path}): {e}")
 
     def _get(self, path, **kwargs):
         return self._make_request("GET", path, **kwargs).json()
@@ -633,18 +625,14 @@ class IsolatedProcessingModule(ProcessingModule):
             raise ModuleExecutionError("Could not get valid task id.")
 
     def _get_config(self):
-        result = {}
-
-        for setting in self.config:
-            result[setting['name']] = getattr(self, setting['name'])
-
-        return result
+        return {
+            setting['name']: getattr(self, setting['name'])
+            for setting in self.config
+        }
 
     def _send_module(self):
-        fd = open(inspect.getsourcefile(self.__class__))
-        result = self._post('/module_update', files={'file': fd})
-        fd.close()
-
+        with open(inspect.getsourcefile(self.__class__)) as fd:
+            result = self._post('/module_update', files={'file': fd})
         result = self._post('/module_update_info', json={'name': self.name, 'config': self._get_config()})
 
         if result['status'] != 'ok':
@@ -675,10 +663,13 @@ class IsolatedProcessingModule(ProcessingModule):
             self.add_ioc(ioc, results['_results']['iocs'][ioc])
 
         for file_type in results['_results']['generated_files']:
-            local_files = []
+            local_files = [
+                self._get_file(remote_file)
+                for remote_file in results['_results']['generated_files'][
+                    file_type
+                ]
+            ]
 
-            for remote_file in results['_results']['generated_files'][file_type]:
-                local_files.append(self._get_file(remote_file))
 
             self.register_files(file_type, local_files)
 
@@ -692,8 +683,8 @@ class IsolatedProcessingModule(ProcessingModule):
 
     def _use_vm(self, index):
         self.locked_label = self.labels[index]
-        self.base_url = "http://{}:{}".format(self.ip_addresses[index], self.ports[index])
-        self.vm_record = "{}|{}".format(self.virtualization, self.locked_label)
+        self.base_url = f"http://{self.ip_addresses[index]}:{self.ports[index]}"
+        self.vm_record = f"{self.virtualization}|{self.locked_label}"
 
     def _acquire_lock(self):
         LOCK_TIMEOUT = timedelta(minutes=120)
@@ -710,7 +701,7 @@ class IsolatedProcessingModule(ProcessingModule):
             for i, label in enumerate(self.labels):
                 self._use_vm(i)
 
-                last_locked = "{}.last_locked".format(self.vm_record)
+                last_locked = f"{self.vm_record}.last_locked"
 
                 if vms.update_value([self.vm_record, 'locked'], True):
                     vms.update_value([self.vm_record, 'last_locked'], datetime.now())
@@ -736,7 +727,10 @@ class IsolatedProcessingModule(ProcessingModule):
         self._vm = dispatcher.get_virtualization_module(self.virtualization)
 
         if self._vm is None:
-            raise ModuleExecutionError('missing (or disabled) virtualization module: {}'.format(self.virtualization))
+            raise ModuleExecutionError(
+                f'missing (or disabled) virtualization module: {self.virtualization}'
+            )
+
 
         self._vm.initialize(self.locked_label, self.base_url, self.snapshot)
         self._vm.prepare()
@@ -791,7 +785,7 @@ class IsolatedProcessingModule(ProcessingModule):
             fd = open(target, 'rb')
             kwargs['files'] = {'file': fd}
 
-        self._post('/module_each/{}'.format(target_type), **kwargs)
+        self._post(f'/module_each/{target_type}', **kwargs)
 
         if target_type != 'url':
             fd.close()
@@ -923,9 +917,11 @@ class ThreatIntelligenceModule(Module):
         methods = [self.iocs_submission, self.ioc_submission]
         for method in methods:
             for cls in inspect.getmro(method.__self__.__class__):
-                if method.__name__ in cls.__dict__:
-                    if cls.__name__ != 'ThreatIntelligenceModule':
-                        return True
+                if (
+                    method.__name__ in cls.__dict__
+                    and cls.__name__ != 'ThreatIntelligenceModule'
+                ):
+                    return True
         return False
 
     @classmethod
@@ -1027,7 +1023,7 @@ class VirtualizationModule(Module):
         self.vm_label = vm
         self.snapshot = snapshot
 
-        self.agent_url = "{}/ready".format(base_url)
+        self.agent_url = f"{base_url}/ready"
 
     def is_running(self):
         """To implement.
@@ -1094,7 +1090,9 @@ class VirtualizationModule(Module):
             sleep(5)
         else:
             if should_raise:
-                raise ModuleExecutionError("could not restore virtual machine '{}' before timeout.".format(self.vm_label))
+                raise ModuleExecutionError(
+                    f"could not restore virtual machine '{self.vm_label}' before timeout."
+                )
 
     def prepare(self):
         if not (self.is_running() and self.is_ready()):
@@ -1167,8 +1165,7 @@ class PreloadingModule(Module):
             self.init_options(analysis['options'])
             return self.preload(self._analysis.get_main_file())
         except ModuleExecutionError as e:
-            self.log("error", "Could not run on %s: %s" % (
-                self._analysis.get_main_file(), e))
+            self.log("error", f"Could not run on {self._analysis.get_main_file()}: {e}")
             return False
         except Exception:
             tb = traceback.format_exc()

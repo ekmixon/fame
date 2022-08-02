@@ -43,10 +43,7 @@ class User(MongoDict):
         return self['auth_token']
 
     def filters(self):
-        if '*' in self['groups']:
-            return {}
-        else:
-            return {'groups': {'$in': self['groups']}}
+        return {} if '*' in self['groups'] else {'groups': {'$in': self['groups']}}
 
     def has_permission(self, permission):
         return (permission in self['permissions']) or ('*' in self['permissions'])
@@ -54,12 +51,12 @@ class User(MongoDict):
     def generate_avatar(self):
         s = b64encode(os.urandom(64))
         try:
-            response = requests.get("https://robohash.org/{}.png".format(s))
+            response = requests.get(f"https://robohash.org/{s}.png")
             response.raise_for_status()
-            with open(os.path.join(AVATARS_ROOT, "{}.png".format(self['_id'])), 'wb') as f:
+            with open(os.path.join(AVATARS_ROOT, f"{self['_id']}.png"), 'wb') as f:
                 f.write(response.content)
         except:
-            print(("Could not generate avatar for {}".format(self['email'])))
+            print(f"Could not generate avatar for {self['email']}")
 
     @staticmethod
     def generate_api_key():

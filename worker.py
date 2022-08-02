@@ -41,7 +41,7 @@ class Worker:
         # Module updates are only needed for remote workers
         if fame_config.remote:
             # First, backup current code
-            backup_path = os.path.join(fame_config.temp_path, 'modules_backup_{}'.format(uuid4()))
+            backup_path = os.path.join(fame_config.temp_path, f'modules_backup_{uuid4()}')
             move(MODULES_ROOT, backup_path)
 
             # Replace current code with code fetched from web server
@@ -57,7 +57,7 @@ class Worker:
                 rmtree(backup_path)
                 print("Updated modules.")
             except Exception as e:
-                print(("Could not update modules: '{}'".format(e)))
+                print(f"Could not update modules: '{e}'")
                 print("Restoring previous version")
                 move(backup_path, MODULES_ROOT)
 
@@ -84,10 +84,8 @@ class Worker:
             module.save()
 
     def update_python_requirements(self, module):
-        requirements = self._module_requirements(module)
-
-        if requirements:
-            print(("Installing requirements for '{}' ({})".format(module['name'], requirements)))
+        if requirements := self._module_requirements(module):
+            print(f"Installing requirements for '{module['name']}' ({requirements})")
 
             rcode, output = pip_install('-r', requirements)
 
@@ -100,7 +98,7 @@ class Worker:
 
         for script in scripts:
             try:
-                print(("Launching installation script '{}'".format(' '.join(script))))
+                print(f"Launching installation script '{' '.join(script)}'")
                 check_output(script, stderr=STDOUT)
             except CalledProcessError as e:
                 self._module_installation_error(' '.join(script), module, e.output.decode('utf-8', errors='replace'))
@@ -108,7 +106,7 @@ class Worker:
                 self._module_installation_error(' '.join(script), module, e)
 
     def _module_installation_error(self, cmd, module, errors):
-        errors = "{}: error on '{}':\n\n{}".format(cmd, gethostname(), errors)
+        errors = f"{cmd}: error on '{gethostname()}':\n\n{errors}"
 
         module['enabled'] = False
         module['error'] = errors
@@ -127,12 +125,8 @@ class Worker:
             INSTALL_SCRIPTS = UNIX_INSTALL_SCRIPTS
 
         for filename in INSTALL_SCRIPTS:
-            filepath = module.get_file(filename)
-            if filepath:
-                cmdline = []
-
-                for arg in INSTALL_SCRIPTS[filename]:
-                    cmdline.append(arg.format(filepath))
+            if filepath := module.get_file(filename):
+                cmdline = [arg.format(filepath) for arg in INSTALL_SCRIPTS[filename]]
 
                 results.append(cmdline)
 
@@ -209,13 +203,8 @@ if __name__ == '__main__':
 
     queues = args.queues
 
-    # Default queue is 'unix'
     if len(queues) == 0:
-        if sys.platform == 'win32':
-            queues = ['windows']
-        else:
-            queues = ['unix']
-
+        queues = ['windows'] if sys.platform == 'win32' else ['unix']
     # A local worker should also take care of updates
     if not fame_config.remote:
         queues.append('updates')

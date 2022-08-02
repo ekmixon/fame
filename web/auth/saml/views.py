@@ -21,8 +21,12 @@ def create_user(user):
 
 
 def init_saml_auth(req):
-    saml_auth = OneLogin_Saml2_Auth(req, custom_base_path=os.path.join(os.path.dirname(os.path.dirname(__file__)), 'saml/config'))
-    return saml_auth
+    return OneLogin_Saml2_Auth(
+        req,
+        custom_base_path=os.path.join(
+            os.path.dirname(os.path.dirname(__file__)), 'saml/config'
+        ),
+    )
 
 
 def prepare_auth_request(request):

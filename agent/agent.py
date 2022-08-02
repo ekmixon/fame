@@ -25,10 +25,7 @@ def is_iterable(element):
 
 
 def iterify(element):
-    if is_iterable(element):
-        return element
-    else:
-        return (element,)
+    return element if is_iterable(element) else (element, )
 
 
 #
@@ -42,7 +39,7 @@ class IsolatedExceptions:
             self._description = description
 
         def __str__(self):
-            return "%s" % (self._description)
+            return f"{self._description}"
 
     class ModuleExecutionError(Exception):
         def __init__(self, description):
@@ -111,7 +108,7 @@ class IsolatedModule:
             try:
                 return self.each_with_type(target, target_type)
             except IsolatedExceptions.ModuleExecutionError as e:
-                self.log("error", "Could not run on %s: %s" % (target, e))
+                self.log("error", f"Could not run on {target}: {e}")
                 return False
             except Exception:
                 tb = traceback.format_exc()
@@ -134,7 +131,7 @@ def fake_module(path, klass):
     path_parts = path.split('.')
 
     for i in range(1, len(path_parts)):
-        sys.modules['.'.join(path_parts[0:i])] = FakePackage
+        sys.modules['.'.join(path_parts[:i])] = FakePackage
 
     sys.modules[path] = klass
 
@@ -195,9 +192,8 @@ class Worker:
     def is_ready(self):
         if self.process.is_alive():
             return False
-        else:
-            self._module_results = self.queue.get(block=False)
-            return True
+        self._module_results = self.queue.get(block=False)
+        return True
 
     def get_results(self):
         return self._module_results

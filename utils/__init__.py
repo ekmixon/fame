@@ -3,26 +3,18 @@ import getpass
 
 
 def error(msg, code=1, exit=True):
-    print(("\n/!\\ {}".format(msg)))
+    print(f"\n/!\\ {msg}")
 
     if exit:
         sys.exit(code)
 
 
 def user_input(prompt, default=None, choices=[]):
-    prompt = "[?] {}".format(prompt)
-
-    if default:
-        prompt += " [{}]: ".format(default)
-    else:
-        prompt += ": "
-
+    prompt = f"[?] {prompt}" + (f" [{default}]: " if default else ": ")
     while True:
-        value = input(prompt).strip()
-
-        if value:
+        if value := input(prompt).strip():
             if choices and value not in choices:
-                print(("[!] Invalid choice: {}".format(value)))
+                print(f"[!] Invalid choice: {value}")
                 continue
 
             return value

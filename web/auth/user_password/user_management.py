@@ -52,14 +52,16 @@ def create_user(name, email, groups, default_sharing, permissions, password=None
 def authenticate(email, password):
     user = User.get(email=email.lower())
 
-    if user_if_enabled(user):
-        if 'pwd_hash' in user:
-            if check_password_hash(user['pwd_hash'], password):
-                if 'auth_token' not in user:
-                    user.update_value('auth_token', auth_token(user))
+    if (
+        user_if_enabled(user)
+        and 'pwd_hash' in user
+        and check_password_hash(user['pwd_hash'], password)
+    ):
+        if 'auth_token' not in user:
+            user.update_value('auth_token', auth_token(user))
 
-                login_user(user)
-                return user
+        login_user(user)
+        return user
 
     return None
 

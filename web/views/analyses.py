@@ -33,23 +33,23 @@ def get_options():
 
     for option_type in ['str', 'integer', 'text']:
         for option in dispatcher.options[option_type]:
-            value = request.form.get("options[{}]".format(option))
+            value = request.form.get(f"options[{option}]")
 
             if value is None:
-                flash('Missing option: {}'.format(option), 'danger')
+                flash(f'Missing option: {option}', 'danger')
                 return None
 
             if option_type == 'integer':
                 try:
                     options[option] = int(value, 0)
                 except Exception:
-                    flash('{} must be an integer'.format(option), 'danger')
+                    flash(f'{option} must be an integer', 'danger')
                     return None
             else:
                 options[option] = value
 
     for option in list(dispatcher.options['bool'].keys()) + ['magic_enabled']:
-        value = request.form.get("options[{}]".format(option))
+        value = request.form.get(f"options[{option}]")
         options[option] = (value is not None) and (value not in ['0', 'False'])
 
     return options
@@ -114,18 +114,21 @@ class AnalysesView(FlaskView, UIView):
         analysis = {'analysis': clean_analyses(get_or_404(current_user.analyses, _id=id))}
         file = current_user.files.find_one({'_id': analysis['analysis']['file']})
         analysis['analysis']['file'] = enrich_comments(clean_files(file))
-        ti_modules = [m for m in dispatcher.get_threat_intelligence_modules()]
+        ti_modules = list(dispatcher.get_threat_intelligence_modules())
         av_modules = [m.name for m in dispatcher.get_antivirus_modules()]
 
         if 'extracted_files' in analysis['analysis']:
-            files = []
-            for id in analysis['analysis']['extracted_files']:
-                files.append(current_user.files.find_one({'_id': id}))
+            files = [
+                current_user.files.find_one({'_id': id})
+                for id in analysis['analysis']['extracted_files']
+            ]
+
             analysis['analysis']['extracted_files'] = clean_files(files)
 
-        modules = dict()
-        for module in ModuleInfo.get_collection().find():
-            modules[module['name']] = ModuleInfo(module)
+        modules = {
+            module['name']: ModuleInfo(module)
+            for module in ModuleInfo.get_collection().find()
+        }
 
         return render(analysis, 'analyses/show.html', ctx={
             'analysis': analysis,
@@ -149,25 +152,24 @@ class AnalysesView(FlaskView, UIView):
         if modules:
             for module in modules:
                 if not ModuleInfo.get(name=module):
-                    flash('"{}" is not a valid module'.format(module), 'danger')
+                    flash(f'"{module}" is not a valid module', 'danger')
                     return False
-        else:
-            if not options['magic_enabled']:
-                flash('You have to select at least one module to execute when magic is disabled', 'danger')
-                return False
+        elif not options['magic_enabled']:
+            flash('You have to select at least one module to execute when magic is disabled', 'danger')
+            return False
 
         return True
 
     def _validate_comment(self, comment):
-        config = Config.get(name="comments")
-
-        if config:
+        if config := Config.get(name="comments"):
             config = config.get_values()
 
             if config['enable'] and config['minimum_length'] > len(comment):
                 flash(
-                    'Comment has to contain at least {} characters'.format(config['minimum_length']),
-                    'danger')
+                    f"Comment has to contain at least {config['minimum_length']} characters",
+                    'danger',
+                )
+
                 return False
 
         return True
@@ -269,24 +271,23 @@ class AnalysesView(FlaskView, UIView):
                 return validation_error()
 
             f = self._get_object_to_analyze()
-            if f is not None:
-                f.add_owners(set(current_user['groups']) & set(groups))
-
-                if comment:
-                    f.add_comment(current_user['_id'], comment)
-
-                if f.existing:
-                    f.add_groups(groups)
-                    flash("File already exists, so the analysis was not launched.")
-
-                    return redirect(clean_files(f), url_for('FilesView:get', id=f['_id']))
-                else:
-                    analysis = {'analysis': clean_analyses(f.analyze(groups, current_user['_id'], modules, options))}
-                    analysis['analysis']['file'] = clean_files(f)
-
-                    return redirect(analysis, url_for('AnalysesView:get', id=analysis['analysis']['_id']))
-            else:
+            if f is None:
                 return render_template('analyses/new.html', options=dispatcher.options)
+            f.add_owners(set(current_user['groups']) & set(groups))
+
+            if comment:
+                f.add_comment(current_user['_id'], comment)
+
+            if f.existing:
+                f.add_groups(groups)
+                flash("File already exists, so the analysis was not launched.")
+
+                return redirect(clean_files(f), url_for('FilesView:get', id=f['_id']))
+            else:
+                analysis = {'analysis': clean_analyses(f.analyze(groups, current_user['_id'], modules, options))}
+                analysis['analysis']['file'] = clean_files(f)
+
+                return redirect(analysis, url_for('AnalysesView:get', id=analysis['analysis']['_id']))
 
     @requires_permission("submit_iocs")
     @route('/<id>/submit_iocs/<module>', methods=["POST"])
@@ -376,14 +377,13 @@ class AnalysesView(FlaskView, UIView):
         filepath = os.path.join(fame_config.storage_path, 'support_files', module, str(analysis['_id']), secure_filename(filename))
         if os.path.isfile(filepath):
             return file_download(filepath)
+        # This code is here for compatibility
+        # with older analyses
+        filepath = os.path.join(fame_config.storage_path, 'support_files', str(analysis['_id']), secure_filename(filename))
+        if os.path.isfile(filepath):
+            return file_download(filepath)
         else:
-            # This code is here for compatibility
-            # with older analyses
-            filepath = os.path.join(fame_config.storage_path, 'support_files', str(analysis['_id']), secure_filename(filename))
-            if os.path.isfile(filepath):
-                return file_download(filepath)
-            else:
-                abort(404)
+            abort(404)
 
     @route('/<id>/refresh-iocs')
     def refresh_iocs(self, id):

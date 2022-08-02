@@ -158,7 +158,7 @@ class FilesView(FlaskView, UIView):
                 f.update_value(['antivirus', module], True)
                 break
         else:
-            return make_response("antivirus module '{}' not present / enabled.".format(module))
+            return make_response(f"antivirus module '{module}' not present / enabled.")
 
         return make_response("ok")
 

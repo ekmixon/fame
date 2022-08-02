@@ -29,13 +29,13 @@ class Repository(MongoDict):
 
     def __init__(self, values={}):
         keyfile = os.path.join(FAME_ROOT, "conf", "id_rsa")
-        self['ssh_cmd'] = "ssh -o StrictHostKeyChecking=no -i {}".format(keyfile)
+        self['ssh_cmd'] = f"ssh -o StrictHostKeyChecking=no -i {keyfile}"
         MongoDict.__init__(self, values)
 
     def delete(self):
         # First, remove modules from database
         for module in ModuleInfo.find():
-            if module['path'].startswith('fame.modules.{}.'.format(self['name'])):
+            if module['path'].startswith(f"fame.modules.{self['name']}."):
                 module.delete()
 
         # Then, delete the files
@@ -54,7 +54,7 @@ class Repository(MongoDict):
         clone_repository.apply_async((self['_id'],), queue='updates')
 
     def do_clone(self):
-        print(("[+] Cloning '{}'".format(self['name'])))
+        print(f"[+] Cloning '{self['name']}'")
         try:
             if self['private']:
                 Repo.clone_from(self['address'], self.path(), env=dict(GIT_SSH_COMMAND=self['ssh_cmd']))
@@ -65,7 +65,10 @@ class Repository(MongoDict):
             self.update_value('status', 'active')
         except Exception as e:
             self['status'] = 'error'
-            self['error_msg'] = 'Could not clone repository, probably due to authentication issues.\n{}'.format(e)
+            self[
+                'error_msg'
+            ] = f'Could not clone repository, probably due to authentication issues.\n{e}'
+
             self.save()
 
         internals = Internals.get(name="updates")
@@ -76,7 +79,7 @@ class Repository(MongoDict):
         pull_repository.apply_async((self['_id'],), queue='updates')
 
     def do_pull(self):
-        print(("[+] Pulling '{}'".format(self['name'])))
+        print(f"[+] Pulling '{self['name']}'")
         try:
             repo = Repo(self.path())
 
@@ -91,14 +94,14 @@ class Repository(MongoDict):
                 for f in files:
                     f = os.path.join(root, f)
                     if f.endswith(".pyc") and not os.path.exists(f[:-1]):
-                        print(("Deleting orphan file '{}'".format(f)))
+                        print(f"Deleting orphan file '{f}'")
                         os.remove(f)
 
             dispatcher.update_modules(self)
             self.update_value('status', 'active')
         except Exception as e:
             self['status'] = 'error'
-            self['error_msg'] = 'Could not update repository.\n{}'.format(e)
+            self['error_msg'] = f'Could not update repository.\n{e}'
             self.save()
 
         updates = Internals.get(name="updates")

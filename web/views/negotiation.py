@@ -32,17 +32,10 @@ def render(data, template, ctx=None):
 
 
 def redirect(data, path):
-    if should_render_as_html():
-        return flask_redirect(path)
-
-    return render_json(data)
+    return flask_redirect(path) if should_render_as_html() else render_json(data)
 
 
 def validation_error(path=None):
     if should_render_as_html():
-        if path:
-            return flask_redirect(path)
-
-        return flask_redirect(request.referrer)
-
+        return flask_redirect(path) if path else flask_redirect(request.referrer)
     return render_json({'errors': get_flashed_messages()})

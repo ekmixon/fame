@@ -12,7 +12,7 @@ class ConfigObject:
         config = configparser.SafeConfigParser({'root': FAME_ROOT}, allow_no_value=True)
 
         if filename:
-            config.read(os.path.join(FAME_ROOT, "conf", "%s.conf" % filename))
+            config.read(os.path.join(FAME_ROOT, "conf", f"{filename}.conf"))
         else:
             from_string = StringIO(from_string)
             config.readfp(from_string)

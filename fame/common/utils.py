@@ -16,10 +16,7 @@ def is_iterable(element):
 
 
 def iterify(element):
-    if is_iterable(element):
-        return element
-    else:
-        return (element,)
+    return element if is_iterable(element) else (element, )
 
 
 def u(string):
@@ -107,9 +104,7 @@ def with_timeout(func, timeout, step):
     started_at = datetime.now()
 
     while started_at + timeout > datetime.now():
-        result = func()
-
-        if result:
+        if result := func():
             return result
 
         sleep(step)

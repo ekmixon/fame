@@ -62,18 +62,21 @@ class ModuleDispatcher(object):
         return None
 
     def get_preloading_module(self, module_name):
-        for module in self._modules['Preloading']:
-            if module.info['name'] == module_name:
-                return module()
-        else:
-            return None
+        return next(
+            (
+                module()
+                for module in self._modules['Preloading']
+                if module.info['name'] == module_name
+            ),
+            None,
+        )
 
     # Get all modules triggered by a specific tag
     def triggered_by(self, tag):
         results = []
 
         if tag in self._triggers:
-            results = results + self._triggers[tag]
+            results += self._triggers[tag]
 
         for trigger in self._dynamic_triggers:
             if fnmatch.fnmatch(tag, trigger):
@@ -90,12 +93,10 @@ class ModuleDispatcher(object):
 
         if not module.info['acts_on']:
             return module_name
-        else:
-            for acts_on in iterify(module.info['acts_on']):
-                if acts_on in types_available:
-                    return module_name
-            else:
-                return self._shortest_path_to_module(types_available, module, excluded_modules)
+        for acts_on in iterify(module.info['acts_on']):
+            if acts_on in types_available:
+                return module_name
+        return self._shortest_path_to_module(types_available, module, excluded_modules)
 
     def next_preloading_module(self, selected_modules=[], excluded_modules=[]):
         candidate_module = None
@@ -140,15 +141,17 @@ class ModuleDispatcher(object):
             return []
 
     def get_virtualization_module(self, name):
-        for m in self._modules['Virtualization']:
-            if m.name == name and m.info['enabled']:
-                return m()
-
-        return None
+        return next(
+            (
+                m()
+                for m in self._modules['Virtualization']
+                if m.name == name and m.info['enabled']
+            ),
+            None,
+        )
 
     def add_module(self, module):
-        m = get_class(module['path'], module['class'])
-        if m:
+        if m := get_class(module['path'], module['class']):
             m.info = module
             try:
                 m = m()
@@ -158,9 +161,7 @@ class ModuleDispatcher(object):
                 print(("Could not initialize module '{0}': {1}".format(module['name'], e)))
 
     def add_virtualization_module(self, module):
-        m = get_class(module['path'], module['class'])
-
-        if m:
+        if m := get_class(module['path'], module['class']):
             m.info = module
             self._modules['Virtualization'].append(m)
 
@@ -187,32 +188,30 @@ class ModuleDispatcher(object):
                 print(("Could not initialize module '{0}': {1}".format(module['name'], e)))
 
     def add_processing_module(self, module):
-        m = get_class(module['path'], module['class'])
-        if m:
-            m.info = module
-            self._modules['Processing'][module['name']] = m
+        if not (m := get_class(module['path'], module['class'])):
+            return
+        m.info = module
+        self._modules['Processing'][module['name']] = m
 
-            self._add_module_options(module)
-            self._add_module_permissions(module)
+        self._add_module_options(module)
+        self._add_module_permissions(module)
 
-            # Add module to transform if 'generates' is defined
-            if module['generates']:
-                self._add_transforms(module)
+        # Add module to transform if 'generates' is defined
+        if module['generates']:
+            self._add_transforms(module)
 
             # Add module to triggers if 'triggered_by' is defined
-            if module['triggered_by']:
-                self._add_module_triggers(module)
-            # Otherwise, add to general purpose modules
-            else:
-                self._general.append(module['name'])
+        if module['triggered_by']:
+            self._add_module_triggers(module)
+        else:
+            self._general.append(module['name'])
                 # Also, if module acts on specific file type, add a specific trigger
-                if module['acts_on']:
-                    for source_type in iterify(module['acts_on']):
-                        self._add_trigger(self._triggers, "_generated_file(%s)" % source_type, module)
+            if module['acts_on']:
+                for source_type in iterify(module['acts_on']):
+                    self._add_trigger(self._triggers, f"_generated_file({source_type})", module)
 
     def add_preloading_module(self, module):
-        m = get_class(module['path'], module['class'])
-        if m:
+        if m := get_class(module['path'], module['class']):
             m.info = module
             self._add_module_options(module)
             self._modules['Preloading'].append(m)
@@ -284,8 +283,10 @@ class ModuleDispatcher(object):
             module_info = ModuleInfo.get(name=module.name)
 
             # Ignore duplicates
-            if module_info and not module_info['path'].startswith('fame.modules.{}.'.format(repository['name'])):
-                print(("Duplicate name '{}', ignoring module.".format(module.name)))
+            if module_info and not module_info['path'].startswith(
+                f"fame.modules.{repository['name']}."
+            ):
+                print(f"Duplicate name '{module.name}', ignoring module.")
                 return None
 
             # Handle named configs
@@ -316,13 +317,11 @@ class ModuleDispatcher(object):
         return named_configs
 
     def list_installed_modules_for(self, repository):
-        results = set()
-
-        for module in ModuleInfo.get_collection().find():
-            if module['path'].startswith('fame.modules.{}.'.format(repository['name'])):
-                results.add(module['name'])
-
-        return results
+        return {
+            module['name']
+            for module in ModuleInfo.get_collection().find()
+            if module['path'].startswith(f"fame.modules.{repository['name']}.")
+        }
 
     def _remove_compiled_files(self, root_dir):
         for root, dirs, files in walk(root_dir):
@@ -332,15 +331,17 @@ class ModuleDispatcher(object):
 
     def walk_modules(self, modules_dir, repository=None):
         for loader, name, ispkg in pkgutil.walk_packages([modules_dir], prefix='fame.modules.'):
-            if not ispkg:
-                if repository is None or name.startswith('fame.modules.{}.'.format(repository['name'])):
-                    try:
-                        module = importlib.import_module(name)
-                        for _, obj in inspect.getmembers(module, inspect.isclass):
-                            if issubclass(obj, Module):
-                                yield name, obj
-                    except Exception:
-                        pass
+            if not ispkg and (
+                repository is None
+                or name.startswith(f"fame.modules.{repository['name']}.")
+            ):
+                try:
+                    module = importlib.import_module(name)
+                    for _, obj in inspect.getmembers(module, inspect.isclass):
+                        if issubclass(obj, Module):
+                            yield name, obj
+                except Exception:
+                    pass
 
     def update_modules(self, repository):
         base_dir = path.dirname(path.dirname(path.abspath(__file__)))
@@ -359,7 +360,7 @@ class ModuleDispatcher(object):
 
         # Delete all modules that are no longer in the repository
         for missing_module in installed_modules:
-            print(("Deleting '{}'".format(missing_module)))
+            print(f"Deleting '{missing_module}'")
             ModuleInfo.get_collection().remove({'name': missing_module})
 
         # Disable all modules that have incomplete named configs
@@ -370,7 +371,10 @@ class ModuleDispatcher(object):
                         info = ModuleInfo.get(name=obj.name)
 
                         if info['enabled']:
-                            print(("Disabling {} for incomplete named config {}".format(obj.name, updated_named_config['name'])))
+                            print(
+                                f"Disabling {obj.name} for incomplete named config {updated_named_config['name']}"
+                            )
+
                             info.update_value('enabled', False)
 
     # Return the first direct transform that is not in the excluded modules
@@ -415,12 +419,12 @@ class ModuleDispatcher(object):
 
         if path_length == 1:
             return (next_module, 1)
+        if direct_transform := self._get_direct_transform(
+            destination_type, excluded_modules
+        ):
+            return (direct_transform, 1)
         else:
-            direct_transform = self._get_direct_transform(destination_type, excluded_modules)
-            if direct_transform:
-                return (direct_transform, 1)
-            else:
-                return (next_module, path_length)
+            return (next_module, path_length)
 
     def _shortest_path(self, source_type, destination_type, excluded_modules, excluded_types=None):
         next_module = None
@@ -448,10 +452,7 @@ class ModuleDispatcher(object):
             return 1
         else:
             module, length = self._shortest_path(transform['type'], destination_type, excluded_modules, excluded_types)
-            if length is not None:
-                return length + 1
-            else:
-                return None
+            return length + 1 if length is not None else None
 
 
 dispatcher = ModuleDispatcher()

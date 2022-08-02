@@ -30,12 +30,15 @@ def create_user(user):
         msg = email_server.new_message_from_template("Define your FAME account's password.", 'mail_user_creation.html', {'user': user, 'url': reset_url})
         msg.send([user['email']])
     else:
-        if email_server.is_configured:
-            error = "Could not connect to SMTP Server."
-        else:
-            error = "SMTP Server not properly configured."
+        error = (
+            (
+                "Could not connect to SMTP Server."
+                if email_server.is_configured
+                else "SMTP Server not properly configured."
+            )
+            + f" The new user should visit '{reset_url}' in the next 24 hours in order to define his password"
+        )
 
-        error += " The new user should visit '{}' in the next 24 hours in order to define his password".format(reset_url)
         flash(error, 'persistent')
 
     return True
@@ -48,7 +51,11 @@ def valid_new_password(password, confirmation):
         flash('Password confirmation differs from new password.', 'danger')
         return False
     elif strength['score'] <= 2:
-        flash('New password is too weak. Estimated cracking time is {}.'.format(strength['crack_times_display']['offline_slow_hashing_1e4_per_second']), 'danger')
+        flash(
+            f"New password is too weak. Estimated cracking time is {strength['crack_times_display']['offline_slow_hashing_1e4_per_second']}.",
+            'danger',
+        )
+
         return False
 
     return True
@@ -61,14 +68,8 @@ def password_reset_form():
 
     if email_server.is_connected:
         if request.method == 'POST':
-            email = request.form.get('email')
-
-            if not email:
-                flash('You have to specify an email address', 'danger')
-            else:
-                user = User.get(email=email)
-
-                if user:
+            if email := request.form.get('email'):
+                if user := User.get(email=email):
                     token = password_reset_token(user)
                     reset_url = urljoin(fame_config.fame_url, url_for('auth.password_reset', token=token))
 
@@ -78,6 +79,8 @@ def password_reset_form():
                 flash('A password reset link was sent.')
                 return redirect('/login')
 
+            else:
+                flash('You have to specify an email address', 'danger')
         return render_template('password_reset_form.html')
     else:
         flash('Functionnality unavailable. Contact your administrator', 'danger')
@@ -92,10 +95,6 @@ def password_reset(token):
     except BadTimeSignature:
         flash('Invalid token', 'danger')
         return redirect('/login')
-    except SignatureExpired:
-        flash('Expired token', 'danger')
-        return redirect('/login')
-
     if request.method == 'POST':
         password = request.form.get('password', '')
         confirm = request.form.get('password_confirmation', '')
@@ -114,13 +113,12 @@ def password_reset(token):
 def login():
     if request.method == 'GET':
         return render_template('login.html')
+    if authenticate(request.form.get('email'), request.form.get('password')):
+        redir = request.args.get('next', '/')
+        return redirect(redir)
     else:
-        if authenticate(request.form.get('email'), request.form.get('password')):
-            redir = request.args.get('next', '/')
-            return redirect(redir)
-        else:
-            flash("Invalid credentials.", "danger")
-            return render_template('login.html')
+        flash("Invalid credentials.", "danger")
+        return render_template('login.html')
 
 
 @auth.route('/logout')

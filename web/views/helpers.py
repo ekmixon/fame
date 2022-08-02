@@ -32,12 +32,12 @@ def remove_fields(instances, fields):
 
 def clean_objects(instances, filters):
     for permission in filters:
-        if permission != "":
-            if not current_user.has_permission(permission):
-                instances = remove_fields(instances, filters[permission])
-        else:
+        if (
+            permission != ""
+            and not current_user.has_permission(permission)
+            or permission == ""
+        ):
             instances = remove_fields(instances, filters[permission])
-
     return instances
 
 
@@ -85,16 +85,11 @@ def clean_repositories(repositories):
 
 
 def user_has_groups_and_sharing(user):
-    if len(user['groups']) > 0 and len(user['default_sharing']) > 0:
-        return True
-    return False
+    return len(user['groups']) > 0 and len(user['default_sharing']) > 0
 
 
 def user_if_enabled(user):
-    if user and user['enabled']:
-        return user
-
-    return None
+    return user if user and user['enabled'] else None
 
 
 def file_download(filepath):
@@ -110,8 +105,7 @@ def get_or_404(objectmanager, *args, **kwargs):
     if '_id' in kwargs:
         kwargs['_id'] = ObjectId(kwargs['_id'])
 
-    result = objectmanager.find_one(kwargs)
-    if result:
+    if result := objectmanager.find_one(kwargs):
         return result
     else:
         abort(404)
@@ -157,11 +151,8 @@ def prevent_csrf(func):
 
 
 def comments_enabled():
-    # Determine if comments are enabled
-    config = Config.get(name="comments")
-    comments_enabled = False
-
-    if config:
-        comments_enabled = config.get_values()['enable']
-
-    return comments_enabled
+    return (
+        config.get_values()['enable']
+        if (config := Config.get(name="comments"))
+        else False
+    )

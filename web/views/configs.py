@@ -58,19 +58,16 @@ def add(dicts, key, value):
 
 
 def build_query(fields):
-    query = {}
-
-    for field in fields:
-        if request.args.get(field):
-            query[field] = request.args.get(field)
-
-    return query
+    return {
+        field: request.args.get(field)
+        for field in fields
+        if request.args.get(field)
+    }
 
 
 class ConfigsView(FlaskView, UIView):
     def before_request(self, *args, **kwargs):
-        redir = UIView.before_request(self, *args, **kwargs)
-        if redir:
+        if redir := UIView.before_request(self, *args, **kwargs):
             return redir
 
         if not current_user.has_permission('configs'):
@@ -188,7 +185,7 @@ class ConfigsView(FlaskView, UIView):
             types.add(block['type'])
             botnets.add(block['botnet'])
 
-            label = "{}:{}:{}".format(block['target'], block['type'], block['botnet'])
+            label = f"{block['target']}:{block['type']}:{block['botnet']}"
             if block['action'] == ACTION_UPDATE:
                 block['diff'] = ''.join(ndiff(history[label].splitlines(1), block['content'].splitlines(1)))
 

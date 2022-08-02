@@ -15,7 +15,7 @@ def update_repository():
         repo = Repo(FAME_ROOT)
         repo.remotes.origin.pull()
     except Exception as e:
-        error("Could not update repository: {}".format(e))
+        error(f"Could not update repository: {e}")
 
 
 def update_requirements():
@@ -25,7 +25,7 @@ def update_requirements():
 
     # In case pip failed
     if rcode:
-        error("Could not update requirements: {}".format(output))
+        error(f"Could not update requirements: {output}")
 
 
 def end_message():

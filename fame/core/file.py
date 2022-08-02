@@ -211,8 +211,7 @@ class File(MongoDict):
         sha256 = hashlib.sha256()
 
         while True:
-            data = stream.read(4096)
-            if data:
+            if data := stream.read(4096):
                 md5.update(data)
                 sha1.update(data)
                 sha256.update(data)
@@ -234,10 +233,10 @@ class File(MongoDict):
             self['size'] = os.path.getsize(self['filepath'])
 
         # Init antivirus status
-        self['antivirus'] = {}
+        self['antivirus'] = {
+            module.name: False for module in dispatcher.get_antivirus_modules()
+        }
 
-        for module in dispatcher.get_antivirus_modules():
-            self['antivirus'][module.name] = False
 
         self._set_type(hash_only)
 
@@ -284,8 +283,7 @@ class File(MongoDict):
 
         for module in filetype_modules:
             try:
-                known_type = module.recognize(self['filepath'], self['type'])
-                if known_type:
+                if known_type := module.recognize(self['filepath'], self['type']):
                     self['type'] = known_type
                     break
             except:
@@ -304,8 +302,7 @@ class File(MongoDict):
         # Save file contents
         with open(self['filepath'], "wb") as fd:
             while True:
-                data = stream.read(4096)
-                if data:
+                if data := stream.read(4096):
                     fd.write(data)
                 else:
                     stream.seek(0, 0)

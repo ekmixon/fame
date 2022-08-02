@@ -19,7 +19,7 @@ class LdapSettingsNotPresentException(Exception):
 def _check_ldap_settings_present():
     def _check(name):
         if name not in fame_config:
-            print((name + " not present in config"))
+            print(f"{name} not present in config")
             return False
         return True
 
@@ -64,7 +64,11 @@ def _find_user_by_email(con, email):
         full_name = user['cn'][0].decode()
         email = user['mail'][0].decode()
         enabled = (int(user['userAccountControl'][0].decode()) & 0x2) == 0
-        groups = [group for group in [x.decode().lower().split(",")[0].lstrip("cn=") for x in user['memberOf']]]
+        groups = [
+            x.decode().lower().split(",")[0].lstrip("cn=")
+            for x in user['memberOf']
+        ]
+
 
         ldap_user = {
             "principal": principal or full_name,
@@ -82,9 +86,7 @@ def ldap_authenticate(email, password):
     if not con:
         raise LdapSettingsNotPresentException
 
-    ldap_user = _find_user_by_email(con, email)
-
-    if ldap_user:
+    if ldap_user := _find_user_by_email(con, email):
         try:
             con.simple_bind_s(ldap_user['principal'], password)
             return ldap_user
@@ -139,9 +141,7 @@ def create_user(ldap_user):
 
 
 def update_or_create_user(ldap_user):
-    user = User.get(email=ldap_user['mail'])
-
-    if user:
+    if user := User.get(email=ldap_user['mail']):
         # update groups
         groups = get_mapping(ldap_user['groups'], "groups")
         user.update_value('groups', groups)
@@ -169,7 +169,7 @@ def authenticate(email, password):
         # user not found in LDAP, update local user object accordingly (if existent)
         user = User.get(email=email)
         if user:
-            print(("Disabling user {}: not available in LDAP".format(email)))
+            print(f"Disabling user {email}: not available in LDAP")
             user.update_value('enabled', False)
 
         return user

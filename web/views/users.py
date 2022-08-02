@@ -11,7 +11,7 @@ from web.views.negotiation import render, redirect, validation_error
 from web.views.helpers import requires_permission, get_or_404, clean_users
 
 
-auth_module = import_module('web.auth.{}.views'.format(fame_config.auth))
+auth_module = import_module(f'web.auth.{fame_config.auth}.views')
 
 
 class UsersView(FlaskView, UIView):
@@ -46,13 +46,12 @@ class UsersView(FlaskView, UIView):
     def _valid_form(self, name, email, groups, previous_email=None):
         for var in ['name', 'email', 'groups']:
             if not locals()[var]:
-                flash('"{}" is required'.format(var), 'danger')
+                flash(f'"{var}" is required', 'danger')
                 return False
 
         if (previous_email is None) or (previous_email != email):
-            existing_user = User.get_collection().find_one({'email': email})
-            if existing_user:
-                flash('User with email "{}" already exists.'.format(email), 'danger')
+            if existing_user := User.get_collection().find_one({'email': email}):
+                flash(f'User with email "{email}" already exists.', 'danger')
                 return False
 
         return True
@@ -61,7 +60,7 @@ class UsersView(FlaskView, UIView):
         current_permissions = set(current_permissions)
 
         for permission in dispatcher.permissions:
-            value = request.form.get("permission_{}".format(permission))
+            value = request.form.get(f"permission_{permission}")
 
             if (value is not None) and (value not in ['0', 'False']):
                 current_permissions.add(permission)

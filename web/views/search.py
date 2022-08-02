@@ -11,10 +11,7 @@ class SearchView(FlaskView, UIView):
     def post(self):
         query = request.form['query']
 
-        files = []
-        for file in current_user.files.find({'$text': {'$search': query}}):
-            files.append(file)
-
+        files = list(current_user.files.find({'$text': {'$search': query}}))
         analyses = []
         for analysis in current_user.analyses.find({'$text': {'$search': query}}):
             file = current_user.files.find_one({'_id': analysis['file']})

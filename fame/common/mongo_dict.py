@@ -14,22 +14,22 @@ class MongoDict(dict):
         self.collection = store.db[self.collection_name]
 
     @classmethod
-    def get_collection(klass):
-        return store.db[klass.collection_name]
+    def get_collection(cls):
+        return store.db[cls.collection_name]
 
     @classmethod
-    def find(klass, *args, **kwargs):
-        objs = klass.get_collection().find(kwargs)
+    def find(cls, *args, **kwargs):
+        objs = cls.get_collection().find(kwargs)
 
         for obj in objs:
-            yield klass(obj)
+            yield cls(obj)
 
     @classmethod
-    def get(klass, *args, **kwargs):
-        obj = klass.get_collection().find_one(kwargs)
+    def get(cls, *args, **kwargs):
+        obj = cls.get_collection().find_one(kwargs)
 
         if obj:
-            obj = klass(obj)
+            obj = cls(obj)
 
         return obj
 
@@ -89,7 +89,7 @@ class MongoDict(dict):
 
     def _update(self, operation, conditions={}):
         query = {'_id': self['_id']}
-        query.update(conditions)
+        query |= conditions
         result = self.collection.update_one(query, operation)
 
         return result.modified_count == 1

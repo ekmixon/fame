@@ -6,12 +6,7 @@ from fame.common.mongo_dict import MongoDict
 
 
 def config_to_dict(config):
-    result = {}
-
-    for setting in config:
-        result[setting['name']] = setting
-
-    return result
+    return {setting['name']: setting for setting in config}
 
 
 # We will keep configured values, only if they have the same name and type
@@ -22,11 +17,13 @@ def apply_config_update(config, config_update):
     for setting in config_update:
         new_setting = copy(setting)
 
-        if setting['name'] in config:
-            if setting['type'] == config[setting['name']]['type']:
-                new_setting['value'] = config[setting['name']]['value']
-                if 'option' in config[setting['name']]:
-                    new_setting['option'] = config[setting['name']]['option']
+        if (
+            setting['name'] in config
+            and setting['type'] == config[setting['name']]['type']
+        ):
+            new_setting['value'] = config[setting['name']]['value']
+            if 'option' in config[setting['name']]:
+                new_setting['option'] = config[setting['name']]['option']
 
         new_config.append(new_setting)
 
@@ -34,11 +31,10 @@ def apply_config_update(config, config_update):
 
 
 def incomplete_config(config):
-    for setting in config:
-        if setting['value'] is None and 'default' not in setting:
-            return True
-
-    return False
+    return any(
+        setting['value'] is None and 'default' not in setting
+        for setting in config
+    )
 
 
 # This is for FAME's internal configuration
@@ -49,7 +45,11 @@ class Config(MongoDict):
         values = Dictionary()
         for setting in self['config']:
             if (setting['value'] is None) and ('default' not in setting):
-                raise MissingConfiguration("Missing configuration value: {} (in '{}')".format(setting['name'], self['name']), self)
+                raise MissingConfiguration(
+                    f"Missing configuration value: {setting['name']} (in '{self['name']}')",
+                    self,
+                )
+
 
             values[setting['name']] = setting['value']
             if setting['value'] is None:
